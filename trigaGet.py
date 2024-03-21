@@ -1,12 +1,18 @@
+#!/bin/python
+
+import sys
+import socket
+import threading
 import tkinter as tk
 from tkinter import ttk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, ip):
         super().__init__()
-        self.title("TrigaCalib - Aquisição de dados")
+        self.title("TrigaGet")
+        self.ip = ip
         
         # Configurando o tema escuro
         self.configure(bg="#333333")
@@ -85,6 +91,8 @@ class App(tk.Tk):
             
             slider = ttk.Scale(slider_SubSubSubGroup2, from_=1000, to=0, orient="vertical", command=lambda value, label=label_bottom: self.update_label(label, value))
             slider.grid(row=0, column=0, sticky="ns")
+            slider.config(state="disabled")
+
         
         # 2° grupo (do meio)
         self.group2 = ttk.Frame(self)
@@ -93,11 +101,15 @@ class App(tk.Tk):
         self.group2.columnconfigure(0, weight=1)
         self.group2.columnconfigure(1, weight=1)
         
-        self.label_group2 = ttk.Label(self.group2, text="Coloque o reator crítico e clique em gravar.\nMova 1 barra em caso calibração ou as deixem paradas para tirar valores médios.")
+        self.label_group2 = ttk.Label(self.group2, text="Insira a taxa de amostragem em milissegundos.\nClique em Get para iniciar a coleta de dados.")
         self.label_group2.grid(row=0, column=0, sticky="w")
         
-        self.button_group2 = ttk.Button(self.group2, text="Gravar", command=self.button_click)
-        self.button_group2.grid(row=0, column=1, sticky="e")
+        self.entry_group2 = tk.Entry(self.group2,width=5,background="#333333",foreground="#ffffff")
+        self.entry_group2.insert(0, "20")
+        self.entry_group2.grid(row=0, column=1, sticky="e")
+        
+        self.button_group2 = ttk.Button(self.group2, text="Get", command=self.button_get_click)
+        self.button_group2.grid(row=0, column=2, sticky="e")
         
         # 3° grupo (inferior)
         self.group3 = ttk.Frame(self)
@@ -124,8 +136,50 @@ class App(tk.Tk):
     def update_label(self, label, value):
         label.config(text="{:.3f}".format(float(value)))
         
-    def button_click(self):
-        self.label_group2.config(text="Gravando!\nClique em parar quando a quantidade de dados for suficiente.")
+    def button_get_click(self):
+        self.label_group2.config(text="Gravando!\nAo clicar em parar será oferecido um local para salvar o arquivo JSON.")
+        self.entry_group2.config(state="disabled")
+        self.button_group2.config(text="Parar", command=self.button_parar_click)
+
+        try:
+            self.tax_amo = int(self.entry_group2.get())
+            if self.tax_amo < 20:
+                self.tax_amo = 20
+            elif self.tax_amo > 5000:
+                self.tax_amo = 5000
+        except ValueError:
+            self.tax_amo = 20
+            print("Erro entry")
+        
+        self.get = True
+        # Iniciar a thread para recepção de dados
+        self.receive_thread = threading.Thread(target=self.receive_data, daemon=True)
+        self.receive_thread.start()
+
+    def receive_data(self):
+        try:
+            with open('dados.txt', 'w') as file:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.connect(("localhost", 12345))
+                    sock.sendall(str(self.tax_amo).encode())
+                    while self.get:
+                        data = sock.recv(1024)
+                        if not data:
+                            break
+                        file.write(data.decode())
+                    sock.close()
+
+        except Exception as e:
+            print("Erro ao receber dados:", e)
+
+        
+    def button_parar_click(self):
+        self.label_group2.config(text="Insita a taxa de amostragem em milissegundos.\nClique em Get para iniciar a coleta de dados.")
+        self.entry_group2.config(state="normal")
+        self.button_group2.config(text="Get",command=self.button_get_click)
+        # Encerrar a conexão
+        self.get = False
+        
         
     def plot_graph(self):
         t_data = [1, 2, 3, 4, 5]
@@ -138,5 +192,29 @@ class App(tk.Tk):
         self.canvas.draw()
 
 if __name__ == "__main__":
-    app = App()
+    ip = "localhost"#"192.168.1.100"
+    tax_amo = 20
+    
+    if len(sys.argv) > 3:
+        print("Muitos argumentos! Por favor, informe um IP e uma taxa de amostragem em milissegundos como no exemplo abaixo:")
+        print("")
+        print("    ./trigaGet.py <ip> <tax_amo>")
+        print("")
+        print("Ou apenas o IP para usar a taxa de amostragem padrão (" + str(tax_amo) + "ms);")
+        print("Ou sem parâmetros para IP padrão (" + ip + ") e taxa de amostragem padão (" + str(tax_amo) + ") :")
+        sys.exit(1)
+        
+    if len(sys.argv) == 3:
+        try:
+            tax_amo = int(sys.argv[2])
+            if tax_amo < 20:
+                tax_amo = 20
+            elif tax_amo > 5000:
+                tax_amo = 5000
+        except ValueError:
+            print("Por favor, insira um número válido para taxa de amostragem.\n")
+    if len(sys.argv) >= 2:
+        ip = sys.argv[1]
+            
+    app = App(tax_amo)
     app.mainloop()
