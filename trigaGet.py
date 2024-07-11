@@ -1,5 +1,6 @@
 #!/bin/python
 
+import datetime
 import socket
 import threading
 import tkinter as tk
@@ -7,16 +8,16 @@ from tkinter import ttk
 
 class App(tk.Tk):
     
-    
     def __init__(self):
-        cabeçalho_simples = """TrigaGet - Um software para salvar os dados do reator Triga IPR-R1 no seu computador.
-Clique nessa mensagem para instrições de uso.
-"""
+
         super().__init__()
         self.title("TrigaGet")
         self.ip = "localhost"
-        self.port = 12345
-        self.tax_amo = 20
+        self.port = 1234
+        self.tax_amo = 1000
+        self.cabeçalho_simples = """TrigaGet - Um software para salvar os dados do reator Triga IPR-R1 no seu computador.
+Clique nessa mensagem para instrições de uso.
+"""
         
         # Configurando o tema escuro
         self.configure(bg="#333333")
@@ -32,7 +33,7 @@ Clique nessa mensagem para instrições de uso.
         self.groupInstructions.columnconfigure(0, weight=1)
         self.groupInstructions.columnconfigure(1, weight=1)
         
-        self.label1_group0 = ttk.Label(self.groupInstructions, text=cabeçalho_simples)
+        self.label1_group0 = ttk.Label(self.groupInstructions, text=self.cabeçalho_simples)
         self.label1_group0.grid(row=0, column=0, sticky="w")
         
         # 1° grupo (do cima)
@@ -48,13 +49,13 @@ Clique nessa mensagem para instrições de uso.
         self.label1_groupConnections = ttk.Label(self.groupConnections, text="Tax (ms):")
         self.label1_groupConnections.grid(row=1, column=0, sticky="w")
         self.entry1_groupConnections = tk.Entry(self.groupConnections,width=8,background="#333333",foreground="#ffffff")
-        self.entry1_groupConnections.insert(0, "20")
+        self.entry1_groupConnections.insert(0, "1000")
         self.entry1_groupConnections.grid(row=2, column=0, sticky="w")
         
-        self.label2_groupConnections = ttk.Label(self.groupConnections, text="Port:")
+        self.label2_groupConnections = ttk.Label(self.groupConnections, text="Port (CSV):")
         self.label2_groupConnections.grid(row=1, column=1, sticky="w")
         self.entry2_groupConnections = tk.Entry(self.groupConnections,width=8,background="#333333",foreground="#ffffff")
-        self.entry2_groupConnections.insert(0, "123")
+        self.entry2_groupConnections.insert(0, "1234")
         self.entry2_groupConnections.grid(row=2, column=1, sticky="w")
         
         self.label3_groupConnections = ttk.Label(self.groupConnections, text="Ip:")
@@ -73,7 +74,7 @@ Clique nessa mensagem para instrições de uso.
         
         self.title__groupData = ttk.Label(self.groupData, text="[ Dados ]")
         self.title__groupData.grid(row=0, column=0, sticky="w")
-        self.button_groupData = ttk.Button(self.groupData, text="Obter cabeçalho")
+        self.button_groupData = ttk.Button(self.groupData, text="Obter filtro",command=self.button_click_obter_cabeçalho)
         self.button_groupData.grid(row=2, column=0, sticky="w")
         
         # 3° grupo (abaixo)
@@ -88,7 +89,7 @@ Clique nessa mensagem para instrições de uso.
         self.label1_groupFile = ttk.Label(self.groupFile, text="Nome do arquivo:")
         self.label1_groupFile.grid(row=1, column=0, sticky="w")
         self.entry1_groupFile = tk.Entry(self.groupFile,width=40,background="#333333",foreground="#ffffff")
-        self.entry1_groupFile.insert(0, "resultados_")
+        self.entry1_groupFile.insert(0, self.generate_filename())
         self.entry1_groupFile.grid(row=2, column=0, sticky="we")
         self.button_groupFile = ttk.Button(self.groupFile, text="Get", command=self.button_get_click)
         self.button_groupFile.grid(row=2, column=2, sticky="w")
@@ -103,49 +104,136 @@ Clique nessa mensagem para instrições de uso.
     def update_label(self, label, value):
         label.config(text="{:.3f}".format(float(value)))
         
+    def generate_filename(self):
+        now = datetime.datetime.now()
+        filename = f"resultados_{now.strftime('%Y-%m-%d-%H-%M-%S')}"
+        return filename
+    
+    def change_instructions(self):
+        self.label1_group0.config(text=self.cabeçalho_instrucoes)
+        
     def button_get_click(self):
-        self.label1_groupFile.config(text="Gravando!\nAo clicar em parar será salvo o arquivo.")
+        self.label1_groupFile.config(text="Gravando!")
         self.entry1_groupFile.config(state="disabled")
         self.button_groupFile.config(text="Parar", command=self.button_parar_click)
 
         try:
-            self.tax_amo = int(self.entry_groupData.get())
+            self.tax_amo = int(self.entry1_groupConnections.get())
             if self.tax_amo < 20:
                 self.tax_amo = 20
             elif self.tax_amo > 5000:
                 self.tax_amo = 5000
         except ValueError:
-            self.tax_amo = 20
+            self.tax_amo = 1000
             print("Erro entry")
         
         self.get = True
         # Iniciar a thread para recepção de dados
-        self.receive_thread = threading.Thread(target=self.receive_data, daemon=True)
-        self.receive_thread.start()
-
-    def receive_data(self):
-        try:
-            with open('dados.txt', 'w') as file:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.connect(("localhost", 12345))
-                    sock.sendall(str(self.tax_amo).encode())
-                    while self.get:
-                        data = sock.recv(1024)
-                        if not data:
-                            break
-                        file.write(data.decode())
-                    sock.close()
-
-        except Exception as e:
-            print("Erro ao receber dados:", e)
-
+        #self.receive_thread = threading.Thread(target=self.receive_data, daemon=True)
+        #self.receive_thread.start()
         
     def button_parar_click(self):
-        self.label_groupData.config(text="Insita a taxa de amostragem em milissegundos.\nClique em Get para iniciar a coleta de dados.")
-        self.entry_groupData.config(state="normal")
-        self.button_groupData.config(text="Get",command=self.button_get_click)
+        self.label1_groupFile.config(text="Nome do novo arquivo:")
+        self.entry1_groupFile.config(state="normal")
+        self.entry1_groupFile.delete(0,100)
+        self.entry1_groupFile.insert(0, self.generate_filename())
+        self.button_groupFile.config(text="Get",command=self.button_get_click)
         # Encerrar a conexão
         self.get = False
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.connect((self.entry3_groupConnections.get(), int(self.entry2_groupConnections.get()) ))
+        self.sock.sendall(str(self.tax_amo).encode())
+        
+    def disconnect(self):
+        self.sock.close()
+
+    def get_line(self):
+        datas = b""  # Use bytes para acumular os dados
+        while True:
+            data = self.sock.recv(1)  # Recebe 1 byte de cada vez
+            if data == b'\n':  # Verifica se o byte recebido é uma nova linha
+                break
+            datas += data
+        return datas.decode('utf-8')  # Converte os bytes acumulados em string no final
+
+
+        
+    
+        
+    def button_click_obter_cabeçalho(self):
+        self.connect()
+        header = self.get_line()
+        self.disconnect()
+        
+        header = header.split(';')
+        header =               [item for item in header if item]
+        self.header_spu_cha  = [item for item in header if item.startswith("SPU_CHA_")]
+        self.header_spu_chb  = [item for item in header if item.startswith("SPU_CHB_")]
+        self.header_plc_orig = [item for item in header if item.startswith("PLC_ORIG_")]
+        self.header_plc_conv = [item for item in header if item.startswith("PLC_CONV_")]
+        self.header_restante = [item for item in header if not (item.startswith("SPU_CHA_") 
+                                                            or  item.startswith("SPU_CHB_") 
+                                                            or  item.startswith("PLC_ORIG_") 
+                                                            or  item.startswith("PLC_CONV_"))]
+        
+        self.button_groupData.config(text="Escolher filtro",command=self.show_checkboxes_window())
+
+    def populate_checkboxes(self):
+        for idx, item in enumerate(self.header_spu_cha):
+            var = tk.BooleanVar()
+            checkbox = ttk.Checkbutton(self.checkbox_frame, text=item, variable=var)
+            checkbox.grid(row=idx+1, column=0, sticky="w")
+        
+        for idx, item in enumerate(self.header_spu_chb):
+            var = tk.BooleanVar()
+            checkbox = ttk.Checkbutton(self.checkbox_frame, text=item, variable=var)
+            checkbox.grid(row=idx+1, column=1, sticky="w")
+            
+        for idx, item in enumerate(self.header_plc_orig):
+            var = tk.BooleanVar()
+            checkbox = ttk.Checkbutton(self.checkbox_frame, text=item, variable=var)
+            checkbox.grid(row=idx+1, column=2, sticky="w")
+            
+        for idx, item in enumerate(self.header_plc_conv):
+            var = tk.BooleanVar()
+            checkbox = ttk.Checkbutton(self.checkbox_frame, text=item, variable=var)
+            checkbox.grid(row=idx+1, column=3, sticky="w")
+            
+        for idx, item in enumerate(self.header_restante):
+            var = tk.BooleanVar()
+            checkbox = ttk.Checkbutton(self.checkbox_frame, text=item, variable=var)
+            checkbox.grid(row=idx+1, column=4, sticky="w")
+
+    def show_checkboxes_window(self):
+        # Cria uma nova janela
+        self.checkbox_window = tk.Toplevel(self)
+        self.checkbox_window.title("Checkboxes")
+
+        # Cria um canvas e uma scrollbar na nova janela
+        canvas = tk.Canvas(self.checkbox_window)
+        scrollbar = ttk.Scrollbar(self.checkbox_window, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        self.checkbox_frame = scrollable_frame
+
+        # Chame a função para popular as checkboxes aqui
+        self.populate_checkboxes()
+        
 
 if __name__ == "__main__":
     app = App()
