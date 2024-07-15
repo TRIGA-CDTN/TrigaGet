@@ -9,16 +9,19 @@ from tkinter import ttk
 class App(tk.Tk):
     
     def __init__(self):
-
         super().__init__()
+        self.windows_main()
+
+    def windows_main(self):
         self.title("TrigaGet")
         self.ip = "localhost"
         self.port = 1234
         self.tax_amo = 1000
+        self.filtro = False
         self.cabeçalho_simples = """TrigaGet - Um software para salvar os dados do reator Triga IPR-R1 no seu computador.
 Clique nessa mensagem para instrições de uso.
 """
-        
+
         # Configurando o tema escuro
         self.configure(bg="#333333")
         self.style = ttk.Style()
@@ -26,17 +29,17 @@ Clique nessa mensagem para instrições de uso.
         self.style.configure(".", background="#333333", foreground="#ffffff")
         self.style.map("TButton", background=[("active", "#666666")])
 
-        # 0° grupo (do cima)
+        # 1° grupo (do cima)
         self.groupInstructions = ttk.Frame(self)
         self.groupInstructions.grid(row=0, column=0, columnspan=3, padx=5, pady=0, sticky="ewn")
         self.groupInstructions.rowconfigure(0, weight=1)
         self.groupInstructions.columnconfigure(0, weight=1)
         self.groupInstructions.columnconfigure(1, weight=1)
         
-        self.label1_group0 = ttk.Label(self.groupInstructions, text=self.cabeçalho_simples)
-        self.label1_group0.grid(row=0, column=0, sticky="w")
+        self.label1_groupInstructions = ttk.Label(self.groupInstructions, text=self.cabeçalho_simples)
+        self.label1_groupInstructions.grid(row=0, column=0, sticky="w")
         
-        # 1° grupo (do cima)
+        # 2° grupo (do cima)
         self.groupConnections = ttk.Frame(self)
         self.groupConnections.grid(row=1, column=0, columnspan=3, padx=5, pady=0, sticky="ew")
         self.groupConnections.rowconfigure(0, weight=1)
@@ -64,7 +67,7 @@ Clique nessa mensagem para instrições de uso.
         self.entry3_groupConnections.insert(0, "127.0.0.1")
         self.entry3_groupConnections.grid(row=2, column=2, sticky="w")
         
-        # 2° grupo (do meio)
+        # 3° grupo (do meio)
         
         self.groupData = ttk.Frame(self)
         self.groupData.grid(row=2, column=0, columnspan=3, padx=5, pady=0, sticky="ew")
@@ -74,10 +77,10 @@ Clique nessa mensagem para instrições de uso.
         
         self.title__groupData = ttk.Label(self.groupData, text="[ Dados ]")
         self.title__groupData.grid(row=0, column=0, sticky="w")
-        self.button_groupData = ttk.Button(self.groupData, text="Obter filtro",command=self.button_click_obter_cabeçalho)
+        self.button_groupData = ttk.Button(self.groupData, text="Obter filtro CSV",command=self.button_click_obter_filtro)
         self.button_groupData.grid(row=2, column=0, sticky="w")
         
-        # 3° grupo (abaixo)
+        # 4° grupo (abaixo)
         self.groupFile = ttk.Frame(self)
         self.groupFile.grid(row=3, column=0, columnspan=3, padx=5, pady=0, sticky="ews")
         self.groupFile.rowconfigure(0, weight=1)
@@ -158,11 +161,8 @@ Clique nessa mensagem para instrições de uso.
             datas += data
         return datas.decode('utf-8')  # Converte os bytes acumulados em string no final
 
-
-        
-    
-        
-    def button_click_obter_cabeçalho(self):
+    def button_click_obter_filtro(self):
+        self.filtro=True
         self.connect()
         header = self.get_line()
         self.disconnect()
@@ -178,38 +178,41 @@ Clique nessa mensagem para instrições de uso.
                                                             or  item.startswith("PLC_ORIG_") 
                                                             or  item.startswith("PLC_CONV_"))]
         
+        self.create_checkboxes_window()
         self.button_groupData.config(text="Escolher filtro",command=self.show_checkboxes_window())
-
-    def populate_checkboxes(self):
-        for idx, item in enumerate(self.header_spu_cha):
-            var = tk.BooleanVar()
-            checkbox = ttk.Checkbutton(self.checkbox_frame, text=item, variable=var)
-            checkbox.grid(row=idx+1, column=0, sticky="w")
         
-        for idx, item in enumerate(self.header_spu_chb):
-            var = tk.BooleanVar()
-            checkbox = ttk.Checkbutton(self.checkbox_frame, text=item, variable=var)
-            checkbox.grid(row=idx+1, column=1, sticky="w")
-            
-        for idx, item in enumerate(self.header_plc_orig):
-            var = tk.BooleanVar()
-            checkbox = ttk.Checkbutton(self.checkbox_frame, text=item, variable=var)
-            checkbox.grid(row=idx+1, column=2, sticky="w")
-            
-        for idx, item in enumerate(self.header_plc_conv):
-            var = tk.BooleanVar()
-            checkbox = ttk.Checkbutton(self.checkbox_frame, text=item, variable=var)
-            checkbox.grid(row=idx+1, column=3, sticky="w")
-            
-        for idx, item in enumerate(self.header_restante):
-            var = tk.BooleanVar()
-            checkbox = ttk.Checkbutton(self.checkbox_frame, text=item, variable=var)
-            checkbox.grid(row=idx+1, column=4, sticky="w")
+
+    def populate_checkboxes(self,header,idy):
+        self.var=[]
+        self.checkbox=[]
+        
+        # Inicialize as listas aninhadas, se necessário
+        while len(self.var) <= idy:
+            self.var.append([])
+        while len(self.checkbox) <= idy:
+            self.checkbox.append([])
+
+        for idx, item in enumerate(header):
+            # Adicione os elementos às listas aninhadas na posição específica
+            if len(self.var[idy]) <= idx:
+                self.var[idy].append(tk.BooleanVar())
+            else:
+                self.var[idy][idx] = tk.BooleanVar()
+
+            if len(self.checkbox[idy]) <= idx:
+                self.checkbox[idy].append(ttk.Checkbutton(self.checkbox_frame, text=item, variable=self.var[idy][idx]))
+            else:
+                self.checkbox[idy][idx] = ttk.Checkbutton(self.checkbox_frame, text=item, variable=self.var[idy][idx])
+
+            self.checkbox[idy][idx].grid(row=idx+1, column=idy, sticky="w")
 
     def show_checkboxes_window(self):
+        print("teste")
+        
+    def create_checkboxes_window(self):
         # Cria uma nova janela
         self.checkbox_window = tk.Toplevel(self)
-        self.checkbox_window.title("Checkboxes")
+        self.checkbox_window.title("Checkboxes")      
 
         # Cria um canvas e uma scrollbar na nova janela
         canvas = tk.Canvas(self.checkbox_window)
@@ -232,8 +235,11 @@ Clique nessa mensagem para instrições de uso.
         self.checkbox_frame = scrollable_frame
 
         # Chame a função para popular as checkboxes aqui
-        self.populate_checkboxes()
-        
+        self.populate_checkboxes(self.header_spu_cha, 0)
+        self.populate_checkboxes(self.header_spu_chb, 1)
+        self.populate_checkboxes(self.header_plc_orig,2)
+        self.populate_checkboxes(self.header_plc_conv,3)
+        self.populate_checkboxes(self.header_restante,4)
 
 if __name__ == "__main__":
     app = App()
