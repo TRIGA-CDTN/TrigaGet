@@ -5,6 +5,7 @@ import socket
 import threading
 import tkinter as tk
 from tkinter import ttk
+#from M2Crypto import RSA, BIO
 
 class App(tk.Tk):
     
@@ -17,9 +18,16 @@ class App(tk.Tk):
         self.ip = "localhost"
         self.port = 1234
         self.tax_amo = 1000
-        self.filtro = False
+        self.checkbox = []
+        self.boxVar = []
+        self.filtro = []
+        self.crypto = False
         self.cabeçalho_simples = """TrigaGet - Um software para salvar os dados do reator Triga IPR-R1 no seu computador.
-Clique nessa mensagem para instrições de uso.
+Clique nessa mensagem para mostrar instrições de uso.
+"""
+        self.cabeçalho_instrucoes = """TrigaGet - Um software para salvar os dados do reator Triga IPR-R1 no seu computador.
+INSTRUÇÕES
+Clique nessa mensagem para ocultar instrições de uso.
 """
 
         # Configurando o tema escuro
@@ -38,6 +46,7 @@ Clique nessa mensagem para instrições de uso.
         
         self.label1_groupInstructions = ttk.Label(self.groupInstructions, text=self.cabeçalho_simples)
         self.label1_groupInstructions.grid(row=0, column=0, sticky="w")
+        self.label1_groupInstructions.bind("<Button-1>", self.on_label_click) 
         
         # 2° grupo (do cima)
         self.groupConnections = ttk.Frame(self)
@@ -54,6 +63,11 @@ Clique nessa mensagem para instrições de uso.
         self.entry1_groupConnections = tk.Entry(self.groupConnections,width=8,background="#333333",foreground="#ffffff")
         self.entry1_groupConnections.insert(0, "1000")
         self.entry1_groupConnections.grid(row=2, column=0, sticky="w")
+        
+        # Adicionando a checkbox
+        self.check_var = tk.BooleanVar()
+        self.checkbutton = tk.Checkbutton(self.groupConnections, text="Encriptação", command=self.on_check, variable=self.check_var, background="#333333", foreground="#ffffff", selectcolor="#444444")
+        self.checkbutton.grid(row=2, column=0)
         
         self.label2_groupConnections = ttk.Label(self.groupConnections, text="Port (CSV):")
         self.label2_groupConnections.grid(row=1, column=1, sticky="w")
@@ -104,18 +118,13 @@ Clique nessa mensagem para instrições de uso.
         self.rowconfigure(3, weight=33)
         self.columnconfigure((0, 1, 2, 3), weight=1)
         
-    def update_label(self, label, value):
-        label.config(text="{:.3f}".format(float(value)))
-        
     def generate_filename(self):
         now = datetime.datetime.now()
         filename = f"resultados_{now.strftime('%Y-%m-%d-%H-%M-%S')}"
         return filename
-    
-    def change_instructions(self):
-        self.label1_group0.config(text=self.cabeçalho_instrucoes)
         
     def button_get_click(self):
+        self.get = True
         self.label1_groupFile.config(text="Gravando!")
         self.entry1_groupFile.config(state="disabled")
         self.button_groupFile.config(text="Parar", command=self.button_parar_click)
@@ -130,44 +139,105 @@ Clique nessa mensagem para instrições de uso.
             self.tax_amo = 1000
             print("Erro entry")
         
-        self.get = True
+        self.connect()
         # Iniciar a thread para recepção de dados
-        #self.receive_thread = threading.Thread(target=self.receive_data, daemon=True)
-        #self.receive_thread.start()
+        self.receive_thread = threading.Thread(target=self.receive_data, daemon=True)
+        self.receive_thread.start()
+
+    def get_filtro(self):
+        self.filtro = []        
+        for i in range (len(self.checkbox)):
+            if self.boxVar[i].get():
+                self.filtro.append(self.checkbox[i].cget("text"))
+    
+    def receive_data(self):
+        #Deixe o nome do arquivo salvo
+        filename = self.entry1_groupFile.get()
         
+        self.get_filtro()
+            
+        if self.filtro==[]:
+            while self.get:
+                line = self.get_line()
+                with open(filename, 'a') as arquivo:
+                    arquivo.write(line)
+        
+        else:
+            #Armazene o cabeçalho filtrado em uma variavel e já o salve no arquivo
+            newHeader = ';'.join(self.filtro)
+            with open(filename, 'w') as arquivo:
+                arquivo.write(newHeader+";\n")
+            
+            #Obtenha o cabeçalho do servidor e salve em uma lista já separada
+            oldHeader = self.get_line().split(';')
+
+            positions = [oldHeader.index(item) for item in self.filtro if item in oldHeader]
+
+            #A cada linha recebida, salve no arquivo, enqunto self.get não seja alterado externamente
+            while self.get:
+                line = self.get_line().split(';') #Criar uma lista separando os elementos por ;
+                newLine = [line[pos] for pos in positions]  #Processar line para corresponder ao newHeader
+                with open(filename, 'a') as arquivo:
+                    arquivo.write(';'.join(newLine)+";\n")#Juntar os elementos que sobraram em uma string separada por ; e salvar no arquivo
+                    
+        self.disconnect()
+    
     def button_parar_click(self):
+        self.get = False
         self.label1_groupFile.config(text="Nome do novo arquivo:")
         self.entry1_groupFile.config(state="normal")
         self.entry1_groupFile.delete(0,100)
         self.entry1_groupFile.insert(0, self.generate_filename())
         self.button_groupFile.config(text="Get",command=self.button_get_click)
-        # Encerrar a conexão
-        self.get = False
 
     def connect(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.entry3_groupConnections.get(), int(self.entry2_groupConnections.get()) ))
-        self.sock.sendall(str(self.tax_amo).encode())
+        if self.crypto:
+            self.sock.sendall(("s"+str(self.tax_amo)).encode())
+        else:
+            self.sock.sendall(str(self.tax_amo).encode())
+
         
     def disconnect(self):
         self.sock.close()
 
     def get_line(self):
-        datas = b""  # Use bytes para acumular os dados
-        while True:
-            data = self.sock.recv(1)  # Recebe 1 byte de cada vez
-            if data == b'\n':  # Verifica se o byte recebido é uma nova linha
-                break
-            datas += data
-        return datas.decode('utf-8')  # Converte os bytes acumulados em string no final
-
+        if self.crypto:
+            line = ""
+            while True:
+                data = self.sock.recv(256)
+                if not data:
+                    return ""
+                line += self.decryptMsg(data)
+                if line[-1]=='\n':
+                    break
+            return line
+        else:
+            line = b""  # Use bytes para acumular os dados
+            data = ""
+            while data != b'\n': # Verifica se o byte recebido é uma nova linha
+                data = self.sock.recv(1)  # Recebe 1 byte de cada vez
+                line += data
+            return line.decode('utf-8')  # Converte os bytes acumulados em string no final
+            
+            
+    def on_label_click(self, event):
+        self.label1_groupInstructions.config(text=self.cabeçalho_instrucoes)
+        self.label1_groupInstructions.unbind("<Button-1>")
+        self.label1_groupInstructions.bind("<Button-1>", self.on_label_click2)
+        
+    def on_label_click2(self, event):
+        self.label1_groupInstructions.config(text=self.cabeçalho_simples)
+        self.label1_groupInstructions.unbind("<Button-1>")
+        self.label1_groupInstructions.bind("<Button-1>", self.on_label_click)
+        
     def button_click_obter_filtro(self):
-        self.filtro=True
         self.connect()
         header = self.get_line()
         self.disconnect()
         
-        header = header.split(';')
+        header = header.rstrip('\n').split(';')
         header =               [item for item in header if item]
         self.header_spu_cha  = [item for item in header if item.startswith("SPU_CHA_")]
         self.header_spu_chb  = [item for item in header if item.startswith("SPU_CHB_")]
@@ -179,40 +249,23 @@ Clique nessa mensagem para instrições de uso.
                                                             or  item.startswith("PLC_CONV_"))]
         
         self.create_checkboxes_window()
-        self.button_groupData.config(text="Escolher filtro",command=self.show_checkboxes_window())
+        self.button_groupData.config(text="Escolher filtro",command=self.show_checkboxes_window)
         
 
-    def populate_checkboxes(self,header,idy):
-        self.var=[]
-        self.checkbox=[]
-        
-        # Inicialize as listas aninhadas, se necessário
-        while len(self.var) <= idy:
-            self.var.append([])
-        while len(self.checkbox) <= idy:
-            self.checkbox.append([])
-
-        for idx, item in enumerate(header):
-            # Adicione os elementos às listas aninhadas na posição específica
-            if len(self.var[idy]) <= idx:
-                self.var[idy].append(tk.BooleanVar())
-            else:
-                self.var[idy][idx] = tk.BooleanVar()
-
-            if len(self.checkbox[idy]) <= idx:
-                self.checkbox[idy].append(ttk.Checkbutton(self.checkbox_frame, text=item, variable=self.var[idy][idx]))
-            else:
-                self.checkbox[idy][idx] = ttk.Checkbutton(self.checkbox_frame, text=item, variable=self.var[idy][idx])
-
-            self.checkbox[idy][idx].grid(row=idx+1, column=idy, sticky="w")
+    def populate_checkboxes(self,header,columnBox):
+        for idRow, item in enumerate(header):
+            self.boxVar.append(tk.BooleanVar())
+            self.checkbox.append(ttk.Checkbutton(self.checkbox_frame, text=item, variable=self.boxVar[-1]))
+            self.checkbox[-1].grid(row=idRow, column=columnBox, sticky="w")
 
     def show_checkboxes_window(self):
-        print("teste")
+        self.checkbox_window.deiconify()
         
     def create_checkboxes_window(self):
         # Cria uma nova janela
         self.checkbox_window = tk.Toplevel(self)
         self.checkbox_window.title("Checkboxes")      
+        self.checkbox_window.protocol("WM_DELETE_WINDOW", self.checkbox_window.withdraw)
 
         # Cria um canvas e uma scrollbar na nova janela
         canvas = tk.Canvas(self.checkbox_window)
@@ -241,6 +294,26 @@ Clique nessa mensagem para instrições de uso.
         self.populate_checkboxes(self.header_plc_conv,3)
         self.populate_checkboxes(self.header_restante,4)
 
+    def on_check(self):
+        if self.check_var.get():
+            from M2Crypto import RSA, BIO
+            with open('./pub.key', 'rb') as key_file:
+                pub_key_data = key_file.read()
+            self.pub_key = RSA.load_pub_key_bio(BIO.MemoryBuffer(pub_key_data))
+            self.crypto = True
+        else:
+            self.crypto = False        
+    
+    def decryptMsg(self, cryptBytes):
+        from M2Crypto import RSA
+        
+        try:
+            decrypted_message = self.pub_key.public_decrypt(cryptBytes, RSA.pkcs1_padding).decode()
+            return decrypted_message[:-1]
+        except Exception as e:
+            print("Falha ao recuperar a mensagem:", e)
+            return ""
+        
 if __name__ == "__main__":
     app = App()
     app.mainloop()
