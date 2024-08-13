@@ -16,8 +16,8 @@ class App(tk.Tk):
     def windows_main(self):
         self.title("TrigaGet")
         self.ip = "localhost"
-        self.port = 1234
-        self.tax_amo = 1000
+        self.port = 1231
+        self.tax_amo = 100
         self.checkbox = []
         self.boxVar = []
         self.filtro = []
@@ -61,7 +61,7 @@ Clique nessa mensagem para ocultar instrições de uso.
         self.label1_groupConnections = ttk.Label(self.groupConnections, text="Tax (ms):")
         self.label1_groupConnections.grid(row=1, column=0, sticky="w")
         self.entry1_groupConnections = tk.Entry(self.groupConnections,width=8,background="#333333",foreground="#ffffff")
-        self.entry1_groupConnections.insert(0, "1000")
+        self.entry1_groupConnections.insert(0, "100")
         self.entry1_groupConnections.grid(row=2, column=0, sticky="w")
         
         # Adicionando a checkbox
@@ -72,7 +72,7 @@ Clique nessa mensagem para ocultar instrições de uso.
         self.label2_groupConnections = ttk.Label(self.groupConnections, text="Port (CSV):")
         self.label2_groupConnections.grid(row=1, column=1, sticky="w")
         self.entry2_groupConnections = tk.Entry(self.groupConnections,width=8,background="#333333",foreground="#ffffff")
-        self.entry2_groupConnections.insert(0, "1234")
+        self.entry2_groupConnections.insert(0, "1231")
         self.entry2_groupConnections.grid(row=2, column=1, sticky="w")
         
         self.label3_groupConnections = ttk.Label(self.groupConnections, text="Ip:")
@@ -120,7 +120,7 @@ Clique nessa mensagem para ocultar instrições de uso.
         
     def generate_filename(self):
         now = datetime.datetime.now()
-        filename = f"resultados_{now.strftime('%Y-%m-%d-%H-%M-%S')}"
+        filename = f"resultados_{now.strftime('%Y-%m-%d-%H-%M-%S')}.csv"
         return filename
         
     def button_get_click(self):
@@ -136,7 +136,7 @@ Clique nessa mensagem para ocultar instrições de uso.
             elif self.tax_amo > 5000:
                 self.tax_amo = 5000
         except ValueError:
-            self.tax_amo = 1000
+            self.tax_amo = 100
             print("Erro entry")
         
         self.connect()
